@@ -118,20 +118,12 @@ public class ServicioDeSolicitudes {
 
     private void validarTransicion(Solicitud solicitud, EstadoSolicitud nuevoEstado) {
         EstadoSolicitud estadoActual = EstadoSolicitud.desdeValor(solicitud.estado);
+        ValidadorDeTransiciones validador = new ValidadorDeTransiciones();
 
-        if (estadoActual == EstadoSolicitud.PENDIENTE) {
-            if (nuevoEstado != EstadoSolicitud.EN_PROCESO && nuevoEstado != EstadoSolicitud.RECHAZADA) {
-                throw new IllegalArgumentException("ERROR: transicion invalida");
-            }
-            if (nuevoEstado == EstadoSolicitud.EN_PROCESO && solicitud.idResponsable == null) {
-                throw new IllegalArgumentException("ERROR: no se puede procesar sin responsable");
-            }
-        } else if (estadoActual == EstadoSolicitud.EN_PROCESO) {
-            if (nuevoEstado != EstadoSolicitud.RESUELTA && nuevoEstado != EstadoSolicitud.RECHAZADA) {
-                throw new IllegalArgumentException("ERROR: transicion invalida");
-            }
-        } else {
-            throw new IllegalArgumentException("ERROR: la solicitud ya esta cerrada");
+        boolean tieneResponsable = solicitud.idResponsable != null;
+
+        if (!validador.esTransicionValida(estadoActual, nuevoEstado, tieneResponsable)) {
+            throw new IllegalArgumentException("ERROR: transicion invalida");
         }
     }
 
