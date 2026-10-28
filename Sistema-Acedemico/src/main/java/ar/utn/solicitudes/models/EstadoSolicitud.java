@@ -1,28 +1,33 @@
 package ar.utn.solicitudes.models;
 
+import static java.time.chrono.JapaneseEra.values;
+
 public enum EstadoSolicitud {
     PENDIENTE("pendiente"),
     EN_PROCESO("en_proceso"),
     RESUELTA("resuelta"),
     RECHAZADA("rechazada");
 
-    private final String valor;
+    private final String codigo;
 
-    EstadoSolicitud(String valor) {
-        this.valor = valor;
+    EstadoSolicitud(String codigo) {
+        this.codigo = codigo;
     }
 
-    public String obtenerValor() {
-        return valor;
+    public String codigo() {
+        return codigo;
     }
 
-    public static EstadoSolicitud desdeValor(String valor) {
-        for (EstadoSolicitud e : values()) {
-            if (e.valor.equals(valor)) {
-                return e;
+    public boolean esFinal() {
+        return this == RESUELTA || this == RECHAZADA;
+    }
+
+    public static EstadoSolicitud desdeCodigo(String codigo) {
+        for (EstadoSolicitud estado : values()) {
+            if (estado.codigo.equals(codigo)) {
+                return estado;
             }
         }
-        throw new IllegalArgumentException("Estado no válido: " + valor);
+        return null;
     }
-
 }

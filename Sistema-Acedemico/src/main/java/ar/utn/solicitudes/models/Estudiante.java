@@ -8,10 +8,6 @@ public class Estudiante {
     public String telefono;
     public String carrera;
 
-       public Estudiante(){
-
-         }
-
     public Estudiante(String legajo, String nombre, String apellido,
                       String email, String telefono, String carrera) {
         this.legajo = legajo;
@@ -21,5 +17,4 @@ public class Estudiante {
         this.telefono = telefono;
         this.carrera = carrera;
     }
-
 }
