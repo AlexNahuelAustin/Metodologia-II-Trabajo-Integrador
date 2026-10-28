@@ -10,6 +10,8 @@ import ar.utn.solicitudes.services.ServicioDeSolicitudes;
 
 public class Main {
     public static void main(String[] args) {
+        System.out.println("Codigo refactorizado");
+        System.out.println();
         // --- ensamblado de dependencias ---
         ConexionH2 conexion = new ConexionH2();
         conexion.crearTablasSiNoExisten();
