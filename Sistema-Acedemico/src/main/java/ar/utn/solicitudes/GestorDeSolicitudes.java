@@ -1,8 +1,6 @@
 package ar.utn.solicitudes;
 
-import ar.utn.solicitudes.models.Responsable;
-import ar.utn.solicitudes.models.Solicitud;
-import ar.utn.solicitudes.models.DatosDeRegistroSolicitud;
+import ar.utn.solicitudes.models.*;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -56,8 +54,12 @@ public class GestorDeSolicitudes {
             System.out.println("ERROR: email invalido");
             return -1;
         }
-        if (!datos.tipo().equals("certificado") && !datos.tipo().equals("equivalencia")
-                && !datos.tipo().equals("reincorporacion")) {
+
+        // Valida tipo usando el enum
+        TipoSolicitud tipo;
+        try {
+            tipo = TipoSolicitud.fromValor(datos.tipo());
+        } catch (IllegalArgumentException ex) {
             System.out.println("ERROR: tipo invalido");
             return -1;
         }
@@ -80,12 +82,13 @@ public class GestorDeSolicitudes {
             // cuento cuantas tiene abiertas (no resueltas ni rechazadas)
             ResultSet rs2 = st.executeQuery(
                     "SELECT COUNT(*) FROM solicitudes WHERE legajo_estudiante = '"
-                            + datos.legajo() + "' AND estado <> 'resuelta' AND estado <> 'rechazada'");
+                            + datos.legajo() + "' AND estado <> '" + EstadoSolicitud.RESUELTA.getValor()
+                            + "' AND estado <> '" + EstadoSolicitud.RECHAZADA.getValor() + "'");
             rs2.next();
             int cant = rs2.getInt(1);
             rs2.close();
 
-            if (cant >= 5) {   // 5 = maximo de solicitudes abiertas por estudiante
+            if (cant >= ConstantesSolicitudes.MAX_SOLICITUDES_ABIERTAS_POR_ESTUDIANTE) {
                 System.out.println("ERROR: el estudiante tiene demasiadas solicitudes abiertas");
                 st.close();
                 con.close();
@@ -98,19 +101,10 @@ public class GestorDeSolicitudes {
             int nuevoId = rs3.getInt(1) + 1;
             rs3.close();
 
-            // prioridad segun el tipo: 1 = alta, 2 = media, 3 = baja
-            int prio;
-            if (datos.tipo().equals("reincorporacion")) {
-                prio = 1;
-            } else if (datos.tipo().equals("equivalencia")) {
-                prio = 2;
-            } else {
-                prio = 3;
-            }
-
             st.executeUpdate("INSERT INTO solicitudes VALUES ("
-                    + nuevoId + ",'" + datos.legajo() + "','" + datos.tipo() + "','pendiente',"
-                    + prio + ",NULL,'" + LocalDate.now() + "',NULL,'" + datos.observaciones() + "')");
+                    + nuevoId + ",'" + datos.legajo() + "','" + tipo.getValor() + "','"
+                    + EstadoSolicitud.PENDIENTE.getValor() + "',"
+                    + tipo.getPrioridad() + ",NULL,'" + LocalDate.now() + "',NULL,'" + datos.observaciones() + "')");
 
             st.close();
             con.close();
@@ -130,7 +124,15 @@ public class GestorDeSolicitudes {
      * en_proceso -> resuelta | rechazada
      * resuelta y rechazada son estados finales
      */
-    public boolean cambiarEstado(int id, String nuevoEstado) {
+    public boolean cambiarEstado(int id, String nuevoEstadoStr) {
+        EstadoSolicitud nuevoEstado;
+        try {
+            nuevoEstado = EstadoSolicitud.fromValor(nuevoEstadoStr);
+        } catch (IllegalArgumentException ex) {
+            System.out.println("ERROR: estado no válido");
+            return false;
+        }
+
         try {
             Connection con = DriverManager.getConnection(url, usuario, clave);
             Statement st = con.createStatement();
@@ -142,29 +144,28 @@ public class GestorDeSolicitudes {
                 rs.close(); st.close(); con.close();
                 return false;
             }
-            String actual = rs.getString("estado");
+            EstadoSolicitud actual = EstadoSolicitud.fromValor(rs.getString("estado"));
             String resp = rs.getString("id_responsable");
             rs.close();
 
             String fechaCierre = "NULL";
 
-            if (actual.equals("pendiente")) {
-                if (nuevoEstado.equals("en_proceso")) {
-                    // no se puede poner en proceso sin alguien asignado
+            if (actual == EstadoSolicitud.PENDIENTE) {
+                if (nuevoEstado == EstadoSolicitud.EN_PROCESO) {
                     if (resp == null) {
                         System.out.println("ERROR: no se puede procesar sin responsable");
                         st.close(); con.close();
                         return false;
                     }
-                } else if (nuevoEstado.equals("rechazada")) {
+                } else if (nuevoEstado == EstadoSolicitud.RECHAZADA) {
                     fechaCierre = "'" + LocalDate.now() + "'";
                 } else {
                     System.out.println("ERROR: transicion invalida");
                     st.close(); con.close();
                     return false;
                 }
-            } else if (actual.equals("en_proceso")) {
-                if (nuevoEstado.equals("resuelta") || nuevoEstado.equals("rechazada")) {
+            } else if (actual == EstadoSolicitud.EN_PROCESO) {
+                if (nuevoEstado == EstadoSolicitud.RESUELTA || nuevoEstado == EstadoSolicitud.RECHAZADA) {
                     fechaCierre = "'" + LocalDate.now() + "'";
                 } else {
                     System.out.println("ERROR: transicion invalida");
@@ -177,13 +178,13 @@ public class GestorDeSolicitudes {
                 return false;
             }
 
-            st.executeUpdate("UPDATE solicitudes SET estado = '" + nuevoEstado
+            st.executeUpdate("UPDATE solicitudes SET estado = '" + nuevoEstado.getValor()
                     + "', fecha_cierre = " + fechaCierre + " WHERE id = " + id);
 
             st.close();
             con.close();
 
-            System.out.println("Solicitud " + id + " paso a " + nuevoEstado);
+            System.out.println("Solicitud " + id + " paso a " + nuevoEstado.getValor());
             return true;
 
         } catch (Exception ex) {
@@ -220,7 +221,7 @@ public class GestorDeSolicitudes {
             int asignadas = rs2.getInt("cantidad_asignada");
             rs2.close();
 
-            if (asignadas >= 10) {   // 10 = tope de solicitudes por responsable
+            if (asignadas >= ConstantesSolicitudes.MAX_SOLICITUDES_POR_RESPONSABLE) {
                 System.out.println("ERROR: el responsable esta sobrecargado");
                 st.close(); con.close();
                 return false;
@@ -241,109 +242,6 @@ public class GestorDeSolicitudes {
             System.out.println("ERROR en la base: " + ex.getMessage());
             return false;
         }
-    }
-
-    public void altaResponsable(Responsable r) {
-        try {
-            Connection con = DriverManager.getConnection(url, usuario, clave);
-            Statement st = con.createStatement();
-            st.executeUpdate("MERGE INTO responsables VALUES ('" + r.id + "','"
-                    + r.nombre + "','" + r.area + "'," + r.cantidadAsignada + ")");
-            st.close();
-            con.close();
-        } catch (Exception ex) {
-            System.out.println("ERROR en la base: " + ex.getMessage());
-        }
-    }
-
-    // devuelve las solicitudes que estan en el estado indicado
-    public List<Solicitud> buscarPorEstado(String estado) {
-        List<Solicitud> lst = new ArrayList<>();
-        try {
-            Connection con = DriverManager.getConnection(url, usuario, clave);
-            Statement st = con.createStatement();
-            ResultSet rs = st.executeQuery(
-                    "SELECT * FROM solicitudes WHERE estado = '" + estado + "'");
-            while (rs.next()) {
-                Solicitud s = new Solicitud();
-                s.id = rs.getInt("id");
-                s.legajoEstudiante = rs.getString("legajo_estudiante");
-                s.tipo = rs.getString("tipo");
-                s.estado = rs.getString("estado");
-                s.prioridad = rs.getInt("prioridad");
-                s.idResponsable = rs.getString("id_responsable");
-                s.fechaAlta = rs.getDate("fecha_alta").toLocalDate();
-                if (rs.getDate("fecha_cierre") != null) {
-                    s.fechaCierre = rs.getDate("fecha_cierre").toLocalDate();
-                }
-                s.observaciones = rs.getString("observaciones");
-                lst.add(s);
-            }
-            rs.close(); st.close(); con.close();
-        } catch (Exception ex) {
-            System.out.println("ERROR en la base: " + ex.getMessage());
-        }
-        return lst;
-    }
-
-    // devuelve las solicitudes del tipo indicado
-    public List<Solicitud> buscarPorTipo(String tipo) {
-        List<Solicitud> lst = new ArrayList<>();
-        try {
-            Connection con = DriverManager.getConnection(url, usuario, clave);
-            Statement st = con.createStatement();
-            ResultSet rs = st.executeQuery(
-                    "SELECT * FROM solicitudes WHERE tipo = '" + tipo + "'");
-            while (rs.next()) {
-                Solicitud s = new Solicitud();
-                s.id = rs.getInt("id");
-                s.legajoEstudiante = rs.getString("legajo_estudiante");
-                s.tipo = rs.getString("tipo");
-                s.estado = rs.getString("estado");
-                s.prioridad = rs.getInt("prioridad");
-                s.idResponsable = rs.getString("id_responsable");
-                s.fechaAlta = rs.getDate("fecha_alta").toLocalDate();
-                if (rs.getDate("fecha_cierre") != null) {
-                    s.fechaCierre = rs.getDate("fecha_cierre").toLocalDate();
-                }
-                s.observaciones = rs.getString("observaciones");
-                lst.add(s);
-            }
-            rs.close(); st.close(); con.close();
-        } catch (Exception ex) {
-            System.out.println("ERROR en la base: " + ex.getMessage());
-        }
-        return lst;
-    }
-
-    // devuelve las solicitudes asignadas a ese responsable
-    public List<Solicitud> buscarPorResponsable(String idResp) {
-        List<Solicitud> lst = new ArrayList<>();
-        try {
-            Connection con = DriverManager.getConnection(url, usuario, clave);
-            Statement st = con.createStatement();
-            ResultSet rs = st.executeQuery(
-                    "SELECT * FROM solicitudes WHERE id_responsable = '" + idResp + "'");
-            while (rs.next()) {
-                Solicitud s = new Solicitud();
-                s.id = rs.getInt("id");
-                s.legajoEstudiante = rs.getString("legajo_estudiante");
-                s.tipo = rs.getString("tipo");
-                s.estado = rs.getString("estado");
-                s.prioridad = rs.getInt("prioridad");
-                s.idResponsable = rs.getString("id_responsable");
-                s.fechaAlta = rs.getDate("fecha_alta").toLocalDate();
-                if (rs.getDate("fecha_cierre") != null) {
-                    s.fechaCierre = rs.getDate("fecha_cierre").toLocalDate();
-                }
-                s.observaciones = rs.getString("observaciones");
-                lst.add(s);
-            }
-            rs.close(); st.close(); con.close();
-        } catch (Exception ex) {
-            System.out.println("ERROR en la base: " + ex.getMessage());
-        }
-        return lst;
     }
 
     /**
