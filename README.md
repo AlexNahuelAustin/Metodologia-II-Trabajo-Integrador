@@ -25,15 +25,41 @@ El objetivo del trabajo no es la funcionalidad en si, sino documentar la mejora 
 
 ## Instalacion y uso
 
+Desde la terminal, ingresar a la carpeta del proyecto:
+
+```bash
 cd Sistema-Academico
-./gradlew run        # ejecuta la demostracion
-./gradlew test       # corre la suite de pruebas
+```
+
+Ejecutar la demostracion:
+
+```bash
+./gradlew run
+```
+
+Ejecutar las pruebas:
+
+```bash
+./gradlew test
+```
+
+Generar el reporte de cobertura:
+
+```bash
+./gradlew test jacocoTestReport
+```
 
 Reporte de cobertura:
 
-./gradlew test jacocoTestReport.
+```bash
+./gradlew test jacocoTestReport
+```
 
-# build/reports/jacoco/test/html/index.html
+El reporte HTML se encuentra en la siguiente ruta:
+
+```text
+build/reports/jacoco/test/html/index.html
+```
 
 ## Funcionalidades
 
