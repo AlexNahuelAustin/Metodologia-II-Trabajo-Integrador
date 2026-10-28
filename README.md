@@ -99,8 +99,15 @@ Sistema-Academico/src/main/java/ar/utn/solicitudes/
 
 ## Documentacion
 
-- docs/01-diagnostico.md — calidad interna vs externa y code smells
-- docs/02-code-review.md — checklist tecnico y observaciones
+- [01 - Diagnostico](docs/01-diagnostico.md) — calidad interna vs externa y code smells
+- [02 - Code Review](docs/02-code-review.md) — checklist tecnico y observaciones
+
+### Diagramas UML
+
+- [UML Antes de la refactorizacion](docs/Diagramas/UML%20Antes.jpeg)
+- [UML Despues de la refactorizacion](docs/Diagramas/UML%20Despues.jpeg)
+
+
 
 
 
