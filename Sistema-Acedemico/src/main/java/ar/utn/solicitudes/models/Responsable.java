@@ -6,6 +6,10 @@ public class Responsable {
     public String area;
     public int cantidadAsignada;
 
+    public Responsable(){
+
+    }
+
     public Responsable(String id, String nombre, String area) {
         this.id = id;
         this.nombre = nombre;

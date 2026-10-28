@@ -12,11 +12,11 @@ public enum EstadoSolicitud {
         this.valor = valor;
     }
 
-    public String getValor() {
+    public String obtenerValor() {
         return valor;
     }
 
-    public static EstadoSolicitud fromValor(String valor) {
+    public static EstadoSolicitud desdeValor(String valor) {
         for (EstadoSolicitud e : values()) {
             if (e.valor.equals(valor)) {
                 return e;

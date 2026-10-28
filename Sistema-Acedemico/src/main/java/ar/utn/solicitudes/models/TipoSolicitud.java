@@ -13,15 +13,15 @@ public enum TipoSolicitud {
         this.prioridad = prioridad;
     }
 
-    public String getValor() {
+    public String obtenerValor() {
         return valor;
     }
 
-    public int getPrioridad() {
+    public int obtenerPrioridad() {
         return prioridad;
     }
 
-    public static TipoSolicitud fromValor(String valor) {
+    public static TipoSolicitud desdeValor(String valor) {
         for (TipoSolicitud t : values()) {
             if (t.valor.equals(valor)) {
                 return t;
