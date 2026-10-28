@@ -23,45 +23,65 @@ public class ServicioDeSolicitudes {
     }
 
     public int registrarSolicitud(DatosDeRegistroSolicitud datos) {
-        // validaciones
+        validarDatos(datos);
+        TipoSolicitud tipo = validarYObtenerTipo(datos.tipo());
+        registrarEstudianteQueNoExista(datos);
+        validarQueNoTengaDemasidasSolicitudesAbiertas(datos.legajo());
+        return crearYRegistrarSolicitud(datos, tipo);
+    }
+
+    private void validarDatos(DatosDeRegistroSolicitud datos) {
         if (datos.legajo() == null || datos.legajo().isEmpty()) {
             throw new IllegalArgumentException("ERROR: falta el legajo");
         }
         if (datos.email() == null || !datos.email().contains("@")) {
             throw new IllegalArgumentException("ERROR: email invalido");
         }
+    }
 
-        // Valida tipo usando el enum
-        TipoSolicitud tipo;
+    private TipoSolicitud validarYObtenerTipo(String tipo) {
         try {
-            tipo = TipoSolicitud.desdeValor(datos.tipo());
+            return TipoSolicitud.desdeValor(tipo);
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException("ERROR: tipo invalido");
         }
+    }
 
-        // Registra estudiante si no existe
+    private void registrarEstudianteQueNoExista(DatosDeRegistroSolicitud datos) {
         if (!repositorioEstudiantes.existe(datos.legajo())) {
-            Estudiante estudiante = new Estudiante();
-            estudiante.legajo = datos.legajo();
-            estudiante.nombre = datos.nombre();
-            estudiante.apellido = datos.apellido();
-            estudiante.email = datos.email();
-            estudiante.telefono = datos.telefono();
-            estudiante.carrera = datos.carrera();
+            Estudiante estudiante = crearEstudiante(datos);
             repositorioEstudiantes.registrar(estudiante);
         }
+    }
 
-        // Valida que no tenga demasiadas solicitudes abiertas
+    private Estudiante crearEstudiante(DatosDeRegistroSolicitud datos) {
+        Estudiante estudiante = new Estudiante();
+        estudiante.legajo = datos.legajo();
+        estudiante.nombre = datos.nombre();
+        estudiante.apellido = datos.apellido();
+        estudiante.email = datos.email();
+        estudiante.telefono = datos.telefono();
+        estudiante.carrera = datos.carrera();
+        return estudiante;
+    }
+
+    private void validarQueNoTengaDemasidasSolicitudesAbiertas(String legajo) {
         List<Solicitud> abiertas = repositorioSolicitudes.obtenerPorEstado(EstadoSolicitud.PENDIENTE.obtenerValor());
         long cantidadAbiertas = abiertas.stream()
-                .filter(s -> s.legajoEstudiante.equals(datos.legajo()))
+                .filter(s -> s.legajoEstudiante.equals(legajo))
                 .count();
 
         if (cantidadAbiertas >= ConstantesSolicitudes.MAX_SOLICITUDES_ABIERTAS_POR_ESTUDIANTE) {
             throw new IllegalArgumentException("ERROR: el estudiante tiene demasiadas solicitudes abiertas");
         }
+    }
 
-        // Crea y registra la solicitud
+    private int crearYRegistrarSolicitud(DatosDeRegistroSolicitud datos, TipoSolicitud tipo) {
+        Solicitud solicitud = crearSolicitud(datos, tipo);
+        return repositorioSolicitudes.registrar(solicitud);
+    }
+
+    private Solicitud crearSolicitud(DatosDeRegistroSolicitud datos, TipoSolicitud tipo) {
         Solicitud solicitud = new Solicitud();
         solicitud.legajoEstudiante = datos.legajo();
         solicitud.tipo = tipo.obtenerValor();
@@ -69,26 +89,36 @@ public class ServicioDeSolicitudes {
         solicitud.prioridad = tipo.obtenerPrioridad();
         solicitud.fechaAlta = LocalDate.now();
         solicitud.observaciones = datos.observaciones();
-
-        return repositorioSolicitudes.registrar(solicitud);
+        return solicitud;
     }
 
     public boolean cambiarEstado(int id, String nuevoEstadoStr) {
-        EstadoSolicitud nuevoEstado;
+        EstadoSolicitud nuevoEstado = validarYObtenerEstado(nuevoEstadoStr);
+        Solicitud solicitud = obtenerSolicitudOLanzarError(id);
+        validarTransicion(solicitud, nuevoEstado);
+        actualizarSolicitudConNuevoEstado(solicitud, nuevoEstado);
+        return repositorioSolicitudes.actualizar(solicitud);
+    }
+
+    private EstadoSolicitud validarYObtenerEstado(String nuevoEstadoStr) {
         try {
-            nuevoEstado = EstadoSolicitud.desdeValor(nuevoEstadoStr);
+            return EstadoSolicitud.desdeValor(nuevoEstadoStr);
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException("ERROR: estado no válido");
         }
+    }
 
+    private Solicitud obtenerSolicitudOLanzarError(int id) {
         Solicitud solicitud = repositorioSolicitudes.obtenerPorId(id);
         if (solicitud == null) {
             throw new IllegalArgumentException("ERROR: no existe la solicitud");
         }
+        return solicitud;
+    }
 
+    private void validarTransicion(Solicitud solicitud, EstadoSolicitud nuevoEstado) {
         EstadoSolicitud estadoActual = EstadoSolicitud.desdeValor(solicitud.estado);
 
-        // Valida transiciones
         if (estadoActual == EstadoSolicitud.PENDIENTE) {
             if (nuevoEstado != EstadoSolicitud.EN_PROCESO && nuevoEstado != EstadoSolicitud.RECHAZADA) {
                 throw new IllegalArgumentException("ERROR: transicion invalida");
@@ -103,34 +133,36 @@ public class ServicioDeSolicitudes {
         } else {
             throw new IllegalArgumentException("ERROR: la solicitud ya esta cerrada");
         }
+    }
 
+    private void actualizarSolicitudConNuevoEstado(Solicitud solicitud, EstadoSolicitud nuevoEstado) {
         solicitud.estado = nuevoEstado.obtenerValor();
         if (nuevoEstado == EstadoSolicitud.RESUELTA || nuevoEstado == EstadoSolicitud.RECHAZADA) {
             solicitud.fechaCierre = LocalDate.now();
         }
-
-        return repositorioSolicitudes.actualizar(solicitud);
     }
 
     public boolean asignarResponsable(int id, String idResponsable) {
-        Solicitud solicitud = repositorioSolicitudes.obtenerPorId(id);
-        if (solicitud == null) {
-            throw new IllegalArgumentException("ERROR: no existe la solicitud");
-        }
+        Solicitud solicitud = obtenerSolicitudOLanzarError(id);
+        Responsable responsable = obtenerResponsableOLanzarError(idResponsable);
+        validarQueResponsableNoEsteSobrecargado(responsable);
+        solicitud.idResponsable = idResponsable;
+        repositorioResponsables.incrementarAsignadas(idResponsable);
+        return repositorioSolicitudes.actualizar(solicitud);
+    }
 
+    private Responsable obtenerResponsableOLanzarError(String idResponsable) {
         Responsable responsable = repositorioResponsables.obtenerPorId(idResponsable);
         if (responsable == null) {
             throw new IllegalArgumentException("ERROR: no existe el responsable");
         }
+        return responsable;
+    }
 
+    private void validarQueResponsableNoEsteSobrecargado(Responsable responsable) {
         if (responsable.cantidadAsignada >= ConstantesSolicitudes.MAX_SOLICITUDES_POR_RESPONSABLE) {
             throw new IllegalArgumentException("ERROR: el responsable esta sobrecargado");
         }
-
-        solicitud.idResponsable = idResponsable;
-        repositorioResponsables.incrementarAsignadas(idResponsable);
-
-        return repositorioSolicitudes.actualizar(solicitud);
     }
 
     public List<Solicitud> obtenerSolicitudesPorEstado(String estado) {
