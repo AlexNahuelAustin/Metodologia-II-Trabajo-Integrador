@@ -35,10 +35,22 @@ El sistema tiene **calidad externa aceptable y calidad interna pobre**. Esa comb
 
 ---
 
-## 2. Deuda tecnica y code smells
+## 2. Deuda técnica y code smells
 
-| # | Code smell | Evidencia                                                                                                                                      | Ubicacion | Impacto | Riesgo | Prioridad |
-|---|---|------------------------------------------------------------------------------------------------------------------------------------------------|---|---|---|---|
-| 1 | **God Object** | Una sola clase valida, aplica reglas de negocio, accede a la base e imprime por consola. 300 lineas, 9 metodos publicos.                       | `GestorDeSolicitudes` (clase completa) | Cuatro motivos de cambio distintos conviven. Viola SRP. | Alto: cualquier cambio puede romper algo no relacionado. | **Alta** |
-| 2 | **Metodo largo** | `registrarSolicitud` tiene 70 lineas y hace 6 cosas: valida, busca el estudiante, lo da de alta, cuenta abiertas, calcula prioridad e inserta. | `registrarSolicitud` | Imposible de leer de una pasada; los comentarios internos marcan los metodos que faltan. | Alto: alta probabilidad de introducir bugs al modificarlo. | **Alta** |
-| 3 | **Codigo duplicado** | `buscar                                                                                                                                        
+| # | Code smell | Evidencia | Ubicación | Impacto | Riesgo | Prioridad |
+|---|---|---|---|---|---|---|
+| 1 | **God Object** | Una sola clase valida, aplica reglas de negocio, accede a la base e imprime por consola. 300 líneas, 9 métodos públicos. | `GestorDeSolicitudes` (clase completa) | Cuatro motivos de cambio distintos conviven. Viola SRP. | Alto: cualquier cambio puede romper algo no relacionado. | **Alta** |
+| 2 | **Método largo** | `registrarSolicitud` tiene 70 líneas y hace 6 cosas: valida, busca el estudiante, lo da de alta, cuenta abiertas, calcula prioridad e inserta. | `registrarSolicitud`, líneas 45-115 | Imposible de leer de una pasada; los comentarios internos marcan los métodos que faltan. | Alto: alta probabilidad de introducir bugs al modificarlo. | **Alta** |
+| 3 | **Código duplicado** | `buscarPorEstado`, `buscarPorTipo` y `buscarPorResponsable` son idénticos salvo la cláusula `WHERE`. El mapeo del `ResultSet` a `Solicitud` (11 líneas) está copiado tres veces. | `buscarPorEstado`, `buscarPorTipo`, `buscarPorResponsable` | Agregar un campo a `Solicitud` obliga a modificar tres lugares. | Alto: corregir dos de tres copias deja un bug silencioso. | **Alta** |
+| 4 | **Long parameter list / Data clump** | `registrarSolicitud` recibe 8 parámetros, 6 de ellos `String` consecutivos. Los datos del estudiante (nombre, apellido, email, teléfono, carrera) siempre viajan juntos. | `registrarSolicitud`, firma | El cliente debe recordar el orden exacto; invertir dos `String` compila igual y falla en producción. | Alto: error difícil de detectar, no lo atrapa el compilador. | **Alta** |
+| 5 | **Números y strings mágicos** | `if (cant >= 5)`, `if (asignadas >= 10)`, `> 30`, y los literales `"pendiente"`, `"en_proceso"`, `"certificado"` repetidos por toda la clase. | Métodos `registrarSolicitud`, `asignarResponsable`, `cambiarEstado`, `generarReporte` | El significado está en comentarios, no en el código. Un typo como `"pendinte"` compila. | Medio: reglas de negocio invisibles y dispersas. | **Media** |
+| 6 | **Nombres poco claros** | Variables `p`, `ep`, `res`, `rech`, `c`, `sum`, `lst`, `st`, `rs`, `prio`. Cada una necesita un comentario para entenderse. | `generarReporte`, los tres `buscarPor...` | El comentario hace el trabajo que debería hacer el nombre. | Medio: aumenta el tiempo de comprensión del código. | **Media** |
+| 7 | **Condicional complejo** | `cambiarEstado` tiene `if/else` anidados de dos niveles con la máquina de estados completa escrita a mano, y la lógica de transición mezclada con el armado del SQL. | `cambiarEstado`, líneas 120-180 | Agregar un estado obliga a tocar el método entero. Viola OCP. | Alto: las transiciones válidas no son evidentes y es fácil romperlas. | **Alta** |
+| 8 | **Excepciones tragadas** | Nueve bloques `catch (Exception ex)` que imprimen el mensaje y devuelven `-1`, `false` o una lista vacía. | Todos los métodos de la clase | El llamador no distingue "no hay resultados" de "falló la base de datos". | Alto: errores de infraestructura pasan inadvertidos. | **Alta** |
+
+### Resumen de prioridades
+
+- **Alta (6):** God Object, método largo, código duplicado, long parameter list, condicional complejo, excepciones tragadas.
+- **Media (2):** números mágicos, nombres poco claros.
+
+El orden de ataque propuesto es resolver primero el God Object —separando responsabilidades— porque eso habilita naturalmente la corrección de los demás.                                                                                                                                       
